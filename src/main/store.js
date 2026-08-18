@@ -1,8 +1,9 @@
 const Store = require("electron-store");
+const logic = require("./historyLogic");
 
 const store = new Store();
 
-const MAX_HISTORY = 500;
+const MAX_HISTORY = logic.MAX_HISTORY;
 
 function getHistory() {
   return store.get("history", []);
@@ -13,52 +14,32 @@ function setHistory(history) {
   return history;
 }
 
-// Insert a new entry at the front, de-duplicating by text and capping length.
 function addToHistory(entry) {
-  let history = getHistory();
-  const duplicate = history.findIndex((h) => h.text === entry.text);
-  if (duplicate !== -1) history.splice(duplicate, 1);
-  history.unshift(entry);
-  if (history.length > MAX_HISTORY) history = history.slice(0, MAX_HISTORY);
-  return setHistory(history);
+  return setHistory(logic.insertEntry(getHistory(), entry));
 }
 
 function togglePin(id) {
-  const history = getHistory();
-  const item = history.find((h) => h.id === id);
-  if (item) item.pinned = !item.pinned;
-  return setHistory(history);
+  return setHistory(logic.togglePin(getHistory(), id));
 }
 
 function setTitle(id, title) {
-  const history = getHistory();
-  const item = history.find((h) => h.id === id);
-  if (item) item.title = title || "";
-  return setHistory(history);
+  return setHistory(logic.setTitle(getHistory(), id, title));
 }
 
-// Custom hex-grid position (x/y within its section). Pass null to reset to flow.
 function setPos(id, x, y) {
-  const history = getHistory();
-  const item = history.find((h) => h.id === id);
-  if (item) {
-    if (x == null || y == null) { delete item.hx; delete item.hy; }
-    else { item.hx = x; item.hy = y; }
-  }
-  return setHistory(history);
+  return setHistory(logic.setPos(getHistory(), id, x, y));
 }
 
 function deleteItem(id) {
-  return setHistory(getHistory().filter((h) => h.id !== id));
+  return setHistory(logic.deleteItem(getHistory(), id));
 }
 
-// Clearing keeps pinned items so favourites survive.
 function clearHistory() {
-  return setHistory(getHistory().filter((h) => h.pinned));
+  return setHistory(logic.clearKeepPinned(getHistory()));
 }
 
 function findItem(id) {
-  return getHistory().find((h) => h.id === id);
+  return logic.findItem(getHistory(), id);
 }
 
 module.exports = {

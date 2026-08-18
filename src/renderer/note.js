@@ -14,18 +14,7 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-function noteLines(body) {
-  return (body || "").split("\n").map((l) => l.trim()).filter(Boolean);
-}
-
-// Plain-text form of a note (used by the Copy button).
-function noteToText(note) {
-  if (!note) return "";
-  if (note.type !== "list") return note.body || "";
-  return noteLines(note.body)
-    .map((l, i) => (note.listStyle === "number" ? `${i + 1}. ${l}` : `• ${l}`))
-    .join("\n");
-}
+// noteLines, noteToText: src/renderer/noteText.js (loaded before this script)
 
 let current = null;
 let locked = localStorage.getItem(LS_LOCK) === "1";

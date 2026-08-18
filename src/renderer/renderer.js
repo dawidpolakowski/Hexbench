@@ -17,13 +17,7 @@ function debounce(fn, ms) {
 const $ = (id) => document.getElementById(id);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-function relTime(ts) {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return Math.floor(s / 60) + "m ago";
-  if (s < 86400) return Math.floor(s / 3600) + "h ago";
-  return Math.floor(s / 86400) + "d ago";
-}
+// relTime, typeIcon: src/renderer/textFormat.js (loaded before this script)
 
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -31,12 +25,6 @@ function esc(s) {
 
 function escAttr(s) {
   return esc(s).replace(/"/g, "&quot;");
-}
-
-function typeIcon(t) {
-  if (t === "link") return "🔗";
-  if (t === "code") return "⌥";
-  return "⌨";
 }
 
 // ── Filtering ────────────────────────────────────────────────────────────────
@@ -93,27 +81,8 @@ function renderList(items) {
   list.innerHTML = html;
 }
 
-function hexPoints(cx, cy, r) {
-  return Array.from({ length: 6 }, (_, i) => {
-    const a = (Math.PI / 180) * (60 * i - 30);
-    return `${(cx + r * Math.cos(a)).toFixed(1)},${(cy + r * Math.sin(a)).toFixed(1)}`;
-  }).join(" ");
-}
-
-// Pointy-top hexagon geometry — a true interlocking honeycomb (plaster grid).
-const HEX_R = 50;
-const HEX_W = Math.sqrt(3) * HEX_R;
-const HEX_H = 2 * HEX_R;
-const HEX_VSTEP = 1.5 * HEX_R;
-const HEX_PAD = 10;
-
-// Snap a dropped hex to the nearest honeycomb slot (magnetic).
-function snapHex(x, y) {
-  const row = Math.max(0, Math.round((y - HEX_PAD) / HEX_VSTEP));
-  const off = row % 2 ? HEX_W / 2 : 0;
-  const col = Math.max(0, Math.round((x - HEX_PAD - off) / HEX_W));
-  return { x: HEX_PAD + col * HEX_W + off, y: HEX_PAD + row * HEX_VSTEP };
-}
+// hexPoints, HEX_R/HEX_W/HEX_H/HEX_VSTEP/HEX_PAD, snapHex, computeHoneycombLayout:
+// src/renderer/hexLayout.js (loaded before this script)
 
 function hexTextRows(item) {
   const cx = HEX_W / 2, cy = HEX_H / 2;
@@ -142,23 +111,12 @@ function hexTextRows(item) {
 function layoutHoneycomb(container, items, anim) {
   const wrap = container.closest(".hex-canvas-wrap");
   const avail = (wrap.clientWidth || 760) - HEX_PAD * 2;
-  const cols = Math.max(1, Math.floor((avail - HEX_W / 2) / HEX_W));
-  let slot = 0;
-  let maxBottom = 0;
+  const { positions, height } = computeHoneycombLayout(items, avail);
+  const posById = new Map(positions.map((p) => [p.id, p]));
   let html = "";
 
   items.forEach((item, idx) => {
-    const moved = Number.isFinite(item.hx) && Number.isFinite(item.hy);
-    let x, y;
-    if (moved) {
-      x = item.hx; y = item.hy;
-    } else {
-      const row = Math.floor(slot / cols), col = slot % cols;
-      x = HEX_PAD + col * HEX_W + (row % 2 ? HEX_W / 2 : 0);
-      y = HEX_PAD + row * HEX_VSTEP;
-      slot++;
-    }
-    maxBottom = Math.max(maxBottom, y + HEX_H);
+    const { x, y, moved } = posById.get(item.id);
 
     const cls = `hex-cell${anim && !moved ? " anim" : ""}${moved ? " moved" : ""}${item.pinned ? " pinned" : ""}${selected.includes(item.id) ? " active" : ""}`;
     const delay = anim && !moved ? `;animation-delay:${Math.min(idx * 16, 480)}ms` : "";
@@ -170,7 +128,7 @@ function layoutHoneycomb(container, items, anim) {
     </div>`;
   });
 
-  container.style.height = (maxBottom + HEX_PAD).toFixed(0) + "px";
+  container.style.height = height.toFixed(0) + "px";
   container.innerHTML = html;
 }
 
@@ -304,28 +262,8 @@ async function deleteSelected() {
 }
 
 // ── Notes ────────────────────────────────────────────────────────────────────
-function noteLines(body) {
-  return body.split("\n").map((l) => l.trim()).filter(Boolean);
-}
-
-// Format a list note as text with bullet/number prefixes (for copy).
-function noteToText(note) {
-  if (note.type !== "list") return note.body;
-  const lines = noteLines(note.body);
-  return lines.map((l, i) => (note.listStyle === "number" ? `${i + 1}. ${l}` : `• ${l}`)).join("\n");
-}
-
-function notePreview(note) {
-  if (note.type === "list") {
-    const lines = noteLines(note.body);
-    if (!lines.length) return "Empty list";
-    return lines.map((l, i) => (note.listStyle === "number" ? `${i + 1}. ${l}` : `• ${l}`)).join("   ");
-  }
-  return note.body.replace(/\s+/g, " ").trim() || "Empty note";
-}
-
-// Note grid geometry (rectangular cards)
-const NOTE_W = 168, NOTE_H = 96, NOTE_GAP = 10, NOTE_PAD = 8;
+// noteLines, noteToText, notePreview: src/renderer/noteText.js (loaded before this script)
+// NOTE_W/NOTE_H/NOTE_GAP/NOTE_PAD, snapNote, computeNoteGridLayout: src/renderer/noteLayout.js
 
 function noteCardHtml(n, style) {
   const title = (n.title || "").trim() || "Untitled";
@@ -357,23 +295,15 @@ function renderNotes() {
   } else if (isGrid) {
     // Absolute layout: custom-positioned (dragged) cards stay put, the rest flow.
     const avail = (list.clientWidth || 700) - NOTE_PAD * 2;
-    const cols = Math.max(1, Math.floor((avail + NOTE_GAP) / (NOTE_W + NOTE_GAP)));
-    let slot = 0, maxBottom = 0, html = "";
+    const { positions, height } = computeNoteGridLayout(items, avail);
+    const posById = new Map(positions.map((p) => [p.id, p]));
+    let html = "";
     items.forEach((n) => {
-      const moved = Number.isFinite(n.nx) && Number.isFinite(n.ny);
-      let x, y;
-      if (moved) { x = n.nx; y = n.ny; }
-      else {
-        const r = Math.floor(slot / cols), c = slot % cols;
-        x = NOTE_PAD + c * (NOTE_W + NOTE_GAP);
-        y = NOTE_PAD + r * (NOTE_H + NOTE_GAP);
-        slot++;
-      }
-      maxBottom = Math.max(maxBottom, y + NOTE_H);
+      const { x, y } = posById.get(n.id);
       html += noteCardHtml(n, `left:${x}px;top:${y}px;width:${NOTE_W}px;height:${NOTE_H}px`);
     });
     // Spacer makes the absolutely-positioned content scrollable.
-    html += `<div class="notes-spacer" style="top:${maxBottom + NOTE_PAD}px"></div>`;
+    html += `<div class="notes-spacer" style="top:${height}px"></div>`;
     list.style.height = "";
     list.innerHTML = html;
   } else {
@@ -381,13 +311,6 @@ function renderNotes() {
     list.innerHTML = items.map((n) => noteCardHtml(n, "")).join("");
   }
   renderNoteEditor();
-}
-
-// Snap a dropped position to the nearest aligned slot (magnetic).
-function snapNote(x, y) {
-  const col = Math.max(0, Math.round((x - NOTE_PAD) / (NOTE_W + NOTE_GAP)));
-  const row = Math.max(0, Math.round((y - NOTE_PAD) / (NOTE_H + NOTE_GAP)));
-  return { x: NOTE_PAD + col * (NOTE_W + NOTE_GAP), y: NOTE_PAD + row * (NOTE_H + NOTE_GAP) };
 }
 
 function renderNoteEditor() {
