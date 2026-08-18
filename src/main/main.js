@@ -119,7 +119,7 @@ function buildTrayMenu() {
     { label: `Hexbench v${app.getVersion()}`, enabled: false },
     { type: "separator" },
     { label: "Open", accelerator: "Ctrl+Shift+V", click: () => showWindow() },
-    { label: "Hex grid view", accelerator: "Ctrl+Shift+H", click: () => showWindow("hex") },
+    { label: "Grid view", accelerator: "Ctrl+Shift+H", click: () => showWindow("grid") },
     { type: "separator" },
     {
       label: isPrivateMode ? "Disable private mode" : "Enable private mode",
@@ -152,7 +152,7 @@ function createTray() {
 // ── Global shortcuts ──────────────────────────────────────────────────────────
 function registerShortcuts() {
   globalShortcut.register("Ctrl+Shift+V", toggleWindow);
-  globalShortcut.register("Ctrl+Shift+H", () => showWindow("hex"));
+  globalShortcut.register("Ctrl+Shift+H", () => showWindow("grid"));
   globalShortcut.register("Ctrl+Shift+X", () => setPrivateMode(!isPrivateMode));
   globalShortcut.register("Ctrl+Shift+P", () => {
     const history = store.getHistory();

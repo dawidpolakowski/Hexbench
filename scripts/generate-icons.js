@@ -1,14 +1,14 @@
 // Dependency-free icon generator for Hexbench.
-// Draws a gold hexagon mark and writes app icons (PNG + ICO), tray icons, and an SVG.
+// Draws a thin-white-outline hexagon mark on a transparent background and
+// writes app icons (PNG + ICO), tray icons, and an SVG.
 const zlib = require("zlib");
 const fs = require("fs");
 const path = require("path");
 
 const ASSETS = path.join(__dirname, "../assets");
 
-// Brand colors
-const GOLD = [212, 175, 55];
-const DARK = [12, 12, 16];
+// Brand color
+const WHITE = [255, 255, 255];
 
 // ── PNG encoding ────────────────────────────────────────────────────────────
 const crcTable = new Uint32Array(256);
@@ -68,23 +68,62 @@ function inPolygon(x, y, pts) {
   return inside;
 }
 
-// `transparentCenter` keeps the dark fill (app icon); when false the whole hex is gold (tray).
-function hexIcon(size, { fill = true } = {}) {
-  const cx = (size - 1) / 2;
-  const cy = (size - 1) / 2;
-  const outer = hexVertices(cx, cy, size * 0.46);
-  const inner = hexVertices(cx, cy, size * 0.36);
-  const rgba = Buffer.alloc(size * size * 4);
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const i = (y * size + x) * 4;
-      if (inPolygon(x, y, inner) && fill) {
-        rgba[i] = DARK[0]; rgba[i + 1] = DARK[1]; rgba[i + 2] = DARK[2]; rgba[i + 3] = 255;
-      } else if (inPolygon(x, y, outer)) {
-        rgba[i] = GOLD[0]; rgba[i + 1] = GOLD[1]; rgba[i + 2] = GOLD[2]; rgba[i + 3] = 255;
+// Minimal 5x7 bitmap font — just the two glyphs the mark needs.
+const GLYPH_H = ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"];
+const GLYPH_B = ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."];
+const GLYPH_W = 5, GLYPH_H_ROWS = 7, GLYPH_GAP = 1;
+
+function setPixel(rgba, size, x, y, rgb) {
+  if (x < 0 || y < 0 || x >= size || y >= size) return;
+  const i = (y * size + x) * 4;
+  rgba[i] = rgb[0]; rgba[i + 1] = rgb[1]; rgba[i + 2] = rgb[2]; rgba[i + 3] = 255;
+}
+
+// Draws "HB" centered at (cx, cy), scaled to fit comfortably inside the hex's
+// constant-width waist band. Skipped by the caller below a legible size.
+function drawHB(rgba, size, cx, cy) {
+  const glyphs = [GLYPH_H, GLYPH_B];
+  const cols = GLYPH_W * glyphs.length + GLYPH_GAP * (glyphs.length - 1);
+  const scale = Math.max(1, Math.floor((size * 0.34) / cols));
+  const startX = Math.round(cx - (cols * scale) / 2);
+  const startY = Math.round(cy - (GLYPH_H_ROWS * scale) / 2);
+
+  let colOffset = 0;
+  glyphs.forEach((glyph) => {
+    for (let row = 0; row < GLYPH_H_ROWS; row++) {
+      for (let col = 0; col < GLYPH_W; col++) {
+        if (glyph[row][col] !== "#") continue;
+        const px = startX + (colOffset + col) * scale;
+        const py = startY + row * scale;
+        for (let dy = 0; dy < scale; dy++) {
+          for (let dx = 0; dx < scale; dx++) setPixel(rgba, size, px + dx, py + dy, WHITE);
+        }
       }
     }
+    colOffset += GLYPH_W + GLYPH_GAP;
+  });
+}
+
+// Thin white hex outline on a transparent background, sized to fill as much
+// of the canvas as possible. `withText` adds the "HB" mark (auto-skipped
+// below 64px, where it would just render as noise).
+function hexIcon(size, { withText = true } = {}) {
+  const cx = (size - 1) / 2;
+  const cy = (size - 1) / 2;
+  const outerR = size * 0.48; // max space, minimal margin
+  const strokeW = Math.max(1, size * 0.035) + 1; // thin border, +1px wider
+  const outer = hexVertices(cx, cy, outerR);
+  const inner = hexVertices(cx, cy, outerR - strokeW);
+  const rgba = Buffer.alloc(size * size * 4); // transparent everywhere by default
+
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if (inPolygon(x, y, outer) && !inPolygon(x, y, inner)) setPixel(rgba, size, x, y, WHITE);
+    }
   }
+
+  if (withText && size >= 64) drawHB(rgba, size, cx, cy);
+
   return encodePng(size, rgba);
 }
 
@@ -111,8 +150,8 @@ function encodeIco(pngs) {
 
 // ── SVG ──────────────────────────────────────────────────────────────────────
 const SVG = `<svg width="256" height="256" viewBox="0 0 20 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M10 1L19 6V17L10 22L1 17V6L10 1Z" fill="#0c0c10" stroke="#d4af37" stroke-width="1.5" stroke-linejoin="round"/>
-  <text x="10" y="15" text-anchor="middle" font-size="7" font-weight="700" fill="#d4af37" font-family="sans-serif">HB</text>
+  <path d="M10 1L19 6V17L10 22L1 17V6L10 1Z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+  <text x="10" y="15" text-anchor="middle" font-size="7" font-weight="700" fill="#ffffff" font-family="sans-serif">HB</text>
 </svg>
 `;
 
@@ -129,12 +168,12 @@ function generate() {
   // App icon — ICO with multiple resolutions
   write("icon.ico", encodeIco([16, 32, 48, 64, 128, 256].map((s) => ({ size: s, buf: hexIcon(s) }))));
 
-  // Tray icons (solid gold hexagon reads better at small sizes)
-  write("icon-tray-16.png", hexIcon(16, { fill: false }));
-  write("icon-tray-32.png", hexIcon(32, { fill: false }));
-  write("icon-tray-64.png", hexIcon(64, { fill: false }));
-  write("icon-tray.ico", encodeIco([16, 32, 64].map((s) => ({ size: s, buf: hexIcon(s, { fill: false }) }))));
-  write("tray-icon.png", hexIcon(32, { fill: false }));
+  // Tray icons (outline reads better without text at small sizes)
+  write("icon-tray-16.png", hexIcon(16, { withText: false }));
+  write("icon-tray-32.png", hexIcon(32, { withText: false }));
+  write("icon-tray-64.png", hexIcon(64, { withText: false }));
+  write("icon-tray.ico", encodeIco([16, 32, 64].map((s) => ({ size: s, buf: hexIcon(s, { withText: false }) }))));
+  write("tray-icon.png", hexIcon(32, { withText: false }));
 
   // Vector source
   write("icon.svg", Buffer.from(SVG, "utf8"));

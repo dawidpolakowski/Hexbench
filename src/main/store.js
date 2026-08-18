@@ -26,10 +26,6 @@ function setTitle(id, title) {
   return setHistory(logic.setTitle(getHistory(), id, title));
 }
 
-function setPos(id, x, y) {
-  return setHistory(logic.setPos(getHistory(), id, x, y));
-}
-
 function deleteItem(id) {
   return setHistory(logic.deleteItem(getHistory(), id));
 }
@@ -49,7 +45,6 @@ module.exports = {
   addToHistory,
   togglePin,
   setTitle,
-  setPos,
   deleteItem,
   clearHistory,
   findItem,

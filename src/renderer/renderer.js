@@ -4,7 +4,7 @@ let history = [];
 let notes = [];
 let activeNoteId = null;
 let noteView = "list"; // "list" | "grid"
-let view = "list";      // "list" | "hex" | "notes"
+let view = "list";      // "list" | "grid" | "notes"
 let filter = "all";     // all | text | link | code | pinned
 let selected = [];      // hex view multi-selection (item ids, in selection order)
 let animateGrid = true; // play the pop-in animation on the next full hex render
@@ -81,55 +81,21 @@ function renderList(items) {
   list.innerHTML = html;
 }
 
-// hexPoints, HEX_R/HEX_W/HEX_H/HEX_VSTEP/HEX_PAD, snapHex, computeHoneycombLayout:
-// src/renderer/hexLayout.js (loaded before this script)
-
-function hexTextRows(item) {
-  const cx = HEX_W / 2, cy = HEX_H / 2;
-  const flat = item.text.replace(/\s+/g, " ").trim();
-  const title = (item.title || "").trim();
-  let rows = "";
-  if (title) {
-    const tLines = (title.match(/.{1,13}/g) || []).slice(0, 2);
-    const pLines = ((flat.length > 26 ? flat.slice(0, 26) + "…" : flat).match(/.{1,13}/g) || []).slice(0, 2);
-    let y = cy - (tLines.length + pLines.length - 1) * 7 - 1;
-    tLines.forEach((l) => { rows += `<text class="hex-title" x="${cx}" y="${y.toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700">${esc(l)}</text>`; y += 13; });
-    pLines.forEach((l) => { rows += `<text class="hex-sub" x="${cx}" y="${y.toFixed(1)}" text-anchor="middle" font-size="8.5">${esc(l)}</text>`; y += 12; });
-  } else {
-    const trimmed = flat.length > 60 ? flat.slice(0, 60) + "…" : flat;
-    const lines = (trimmed.match(/.{1,13}/g) || [""]).slice(0, 4);
-    const startY = cy - (lines.length - 1) * 7 + 3;
-    lines.forEach((l, i) => {
-      rows += `<text x="${cx}" y="${(startY + i * 14).toFixed(1)}" text-anchor="middle" font-size="9.5">${esc(l)}</text>`;
-    });
-  }
-  return rows;
+// Each tile is a rectangle sized to its own text, wrapping into rows and
+// packing left-to-right to fill the available width (plain CSS flex-wrap —
+// no position math needed).
+function hexCellHTML(item, idx, anim) {
+  const cls = `hex-cell hex-${item.type}${item.pinned ? " pinned" : ""}${selected.includes(item.id) ? " active" : ""}${anim ? " anim" : ""}`;
+  const delay = anim ? ` style="animation-delay:${Math.min(idx * 16, 480)}ms"` : "";
+  const title = item.title ? `<div class="hex-cell-title">${esc(item.title)}</div>` : "";
+  const flat = item.text.replace(/\s+/g, " ").trim().slice(0, 200);
+  return `<div class="${cls}" data-id="${item.id}"${delay}>
+    ${title}<div class="hex-cell-text">${esc(flat)}</div>
+  </div>`;
 }
 
-// Lay a set of items into a honeycomb inside `container`. Items with custom
-// hx/hy (dragged) are placed absolutely; the rest flow into open slots.
-function layoutHoneycomb(container, items, anim) {
-  const wrap = container.closest(".hex-canvas-wrap");
-  const avail = (wrap.clientWidth || 760) - HEX_PAD * 2;
-  const { positions, height } = computeHoneycombLayout(items, avail);
-  const posById = new Map(positions.map((p) => [p.id, p]));
-  let html = "";
-
-  items.forEach((item, idx) => {
-    const { x, y, moved } = posById.get(item.id);
-
-    const cls = `hex-cell${anim && !moved ? " anim" : ""}${moved ? " moved" : ""}${item.pinned ? " pinned" : ""}${selected.includes(item.id) ? " active" : ""}`;
-    const delay = anim && !moved ? `;animation-delay:${Math.min(idx * 16, 480)}ms` : "";
-    html += `<div class="${cls}" data-id="${item.id}" style="left:${x.toFixed(1)}px;top:${y.toFixed(1)}px;width:${HEX_W.toFixed(1)}px;height:${HEX_H.toFixed(1)}px${delay}">
-      <svg width="${HEX_W.toFixed(1)}" height="${HEX_H.toFixed(1)}" viewBox="0 0 ${HEX_W.toFixed(1)} ${HEX_H.toFixed(1)}">
-        <polygon class="hex-bg hex-${item.type}" points="${hexPoints(HEX_W / 2, HEX_H / 2, HEX_R)}"/>
-        ${hexTextRows(item)}
-      </svg>
-    </div>`;
-  });
-
-  container.style.height = height.toFixed(0) + "px";
-  container.innerHTML = html;
+function renderTiles(container, items, anim) {
+  container.innerHTML = items.map((item, idx) => hexCellHTML(item, idx, anim)).join("");
 }
 
 function renderHex(items) {
@@ -140,12 +106,12 @@ function renderHex(items) {
   const savedSection = $("savedSection");
   if (pinned.length) {
     savedSection.classList.remove("hidden");
-    layoutHoneycomb($("savedGrid"), pinned, anim);
+    renderTiles($("savedGrid"), pinned, anim);
   } else {
     savedSection.classList.add("hidden");
     $("savedGrid").innerHTML = "";
   }
-  layoutHoneycomb($("grid"), rest, anim);
+  renderTiles($("grid"), rest, anim);
   animateGrid = false; // only animate once per full render trigger
 }
 
@@ -263,14 +229,15 @@ async function deleteSelected() {
 
 // ── Notes ────────────────────────────────────────────────────────────────────
 // noteLines, noteToText, notePreview: src/renderer/noteText.js (loaded before this script)
-// NOTE_W/NOTE_H/NOTE_GAP/NOTE_PAD, snapNote, computeNoteGridLayout: src/renderer/noteLayout.js
 
-function noteCardHtml(n, style) {
+// One card shape for both List (vertical stack) and Grid (flex-wrap, sized to
+// content) — only the container's CSS differs between the two views.
+function noteCardHtml(n) {
   const title = (n.title || "").trim() || "Untitled";
-  const preview = notePreview(n).slice(0, 120);
+  const preview = notePreview(n).slice(0, 160);
   const active = n.id === activeNoteId ? " active" : "";
   const tag = n.type === "list" ? '<span class="note-tag">list</span>' : "";
-  return `<div class="note-card${active}" data-note="${n.id}"${style ? ` style="${style}"` : ""}>
+  return `<div class="note-card${active}" data-note="${n.id}">
     <div class="note-card-title">${tag}${esc(title)}</div>
     <div class="note-card-preview">${esc(preview)}</div>
     <div class="note-card-meta">${relTime(n.updated)}</div>
@@ -285,31 +252,12 @@ function renderNotes() {
     : "No notes";
 
   const list = $("notesList");
-  const isGrid = noteView === "grid";
-  list.classList.toggle("grid-mode", isGrid);
-  list.classList.toggle("list-mode", !isGrid);
+  list.classList.toggle("grid-mode", noteView === "grid");
+  list.classList.toggle("list-mode", noteView !== "grid");
 
-  if (!items.length) {
-    list.style.height = "";
-    list.innerHTML = '<div class="empty"><span class="empty-icon">🗒</span>No notes yet</div>';
-  } else if (isGrid) {
-    // Absolute layout: custom-positioned (dragged) cards stay put, the rest flow.
-    const avail = (list.clientWidth || 700) - NOTE_PAD * 2;
-    const { positions, height } = computeNoteGridLayout(items, avail);
-    const posById = new Map(positions.map((p) => [p.id, p]));
-    let html = "";
-    items.forEach((n) => {
-      const { x, y } = posById.get(n.id);
-      html += noteCardHtml(n, `left:${x}px;top:${y}px;width:${NOTE_W}px;height:${NOTE_H}px`);
-    });
-    // Spacer makes the absolutely-positioned content scrollable.
-    html += `<div class="notes-spacer" style="top:${height}px"></div>`;
-    list.style.height = "";
-    list.innerHTML = html;
-  } else {
-    list.style.height = "";
-    list.innerHTML = items.map((n) => noteCardHtml(n, "")).join("");
-  }
+  list.innerHTML = items.length
+    ? items.map((n) => noteCardHtml(n)).join("")
+    : '<div class="empty"><span class="empty-icon">🗒</span>No notes yet</div>';
   renderNoteEditor();
 }
 
@@ -424,12 +372,12 @@ async function newNote(initial) {
 // ── View / filter switching ──────────────────────────────────────────────────
 function setView(v) {
   view = v;
-  if (v === "hex") animateGrid = true;
+  if (v === "grid") animateGrid = true;
   $("tabList").classList.toggle("tab-active", v === "list");
-  $("tabHex").classList.toggle("tab-active", v === "hex");
+  $("tabGrid").classList.toggle("tab-active", v === "grid");
   $("tabNotes").classList.toggle("tab-active", v === "notes");
   $("listView").classList.toggle("hidden", v !== "list");
-  $("hexView").classList.toggle("hidden", v !== "hex");
+  $("hexView").classList.toggle("hidden", v !== "grid");
   $("notesView").classList.toggle("hidden", v !== "notes");
   // Clipboard-only chrome is hidden in the Notes view.
   $("filterRow").classList.toggle("hidden", v === "notes");
@@ -449,75 +397,22 @@ function applyTheme(theme) {
 
 // ── Wiring ───────────────────────────────────────────────────────────────────
 $("tabList").onclick = () => setView("list");
-$("tabHex").onclick = () => setView("hex");
+$("tabGrid").onclick = () => setView("grid");
 $("tabNotes").onclick = () => setView("notes");
 
 $("newNoteBtn").onclick = () => newNote();
 
 const notesListEl = $("notesList");
-// List mode: plain click selects. (Grid mode selection is handled on mouseup.)
+// Plain click selects (both List and Grid view use the same card).
 notesListEl.addEventListener("click", (e) => {
-  if (noteView === "grid") return;
   const card = e.target.closest("[data-note]");
   if (card) { activeNoteId = Number(card.dataset.note); renderNotes(); }
 });
 
-// Grid mode: drag note cards to rearrange, with magnetic snapping.
-let noteDrag = null;
-notesListEl.addEventListener("mousedown", (e) => {
-  if (noteView !== "grid" || e.button !== 0) return;
+// Double-click opens the note as a standalone sticky window.
+notesListEl.addEventListener("dblclick", (e) => {
   const card = e.target.closest(".note-card");
-  if (!card) return;
-  noteDrag = {
-    id: Number(card.dataset.note),
-    el: card,
-    startX: e.clientX,
-    startY: e.clientY,
-    origLeft: parseFloat(card.style.left) || 0,
-    origTop: parseFloat(card.style.top) || 0,
-    moved: false,
-  };
-  e.preventDefault();
-});
-
-document.addEventListener("mousemove", (e) => {
-  if (!noteDrag) return;
-  const dx = e.clientX - noteDrag.startX, dy = e.clientY - noteDrag.startY;
-  if (!noteDrag.moved && Math.hypot(dx, dy) < 4) return;
-  noteDrag.moved = true;
-  noteDrag.el.classList.add("dragging");
-  noteDrag.el.style.left = Math.max(0, noteDrag.origLeft + dx) + "px";
-  noteDrag.el.style.top = Math.max(0, noteDrag.origTop + dy) + "px";
-});
-
-document.addEventListener("mouseup", async () => {
-  if (!noteDrag) return;
-  const d = noteDrag;
-  noteDrag = null;
-  if (d.moved) {
-    d.el.classList.remove("dragging");
-    const snapped = snapNote(parseFloat(d.el.style.left), parseFloat(d.el.style.top));
-    d.el.style.left = snapped.x + "px";
-    d.el.style.top = snapped.y + "px";
-    notes = await hexClip.updateNote(d.id, { nx: snapped.x, ny: snapped.y });
-  } else {
-    activeNoteId = d.id; // plain click → select
-    renderNotes();
-  }
-});
-
-// Double-click: in list mode open the note as a sticky window; in grid mode reset
-// the card back to the auto flow.
-notesListEl.addEventListener("dblclick", async (e) => {
-  const card = e.target.closest(".note-card");
-  if (!card) return;
-  const id = Number(card.dataset.note);
-  if (noteView === "grid") {
-    notes = await hexClip.updateNote(id, { nx: null, ny: null });
-    renderNotes();
-  } else {
-    hexClip.openNoteWindow(id);
-  }
+  if (card) hexClip.openNoteWindow(Number(card.dataset.note));
 });
 
 function setNoteView(v) {
@@ -573,61 +468,11 @@ $("list").addEventListener("click", async (e) => {
   }
 });
 
-window.addEventListener("resize", () => {
-  if (view === "hex") render();
-  else if (view === "notes" && noteView === "grid") renderNotes();
-});
-
-// Hex drag-to-move (delegated across the Saved + main grids). A small move
-// threshold distinguishes a drag from a click (which toggles selection).
-let drag = null;
+// Click a hex tile to toggle it in/out of the multi-selection.
 const hexCanvas = document.querySelector(".hex-canvas-wrap");
-
-hexCanvas.addEventListener("mousedown", (e) => {
-  if (e.button !== 0) return;
+hexCanvas.addEventListener("click", (e) => {
   const cell = e.target.closest(".hex-cell");
-  if (!cell) return;
-  drag = {
-    id: Number(cell.dataset.id),
-    el: cell,
-    startX: e.clientX,
-    startY: e.clientY,
-    origLeft: parseFloat(cell.style.left) || 0,
-    origTop: parseFloat(cell.style.top) || 0,
-    moved: false,
-  };
-  e.preventDefault();
-});
-
-document.addEventListener("mousemove", (e) => {
-  if (!drag) return;
-  const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
-  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
-  drag.moved = true;
-  drag.el.classList.add("dragging");
-  drag.el.style.left = Math.max(0, drag.origLeft + dx) + "px";
-  drag.el.style.top = Math.max(0, drag.origTop + dy) + "px";
-});
-
-document.addEventListener("mouseup", async () => {
-  if (!drag) return;
-  const d = drag;
-  drag = null;
-  if (d.moved) {
-    d.el.classList.remove("dragging");
-    const snapped = snapHex(parseFloat(d.el.style.left), parseFloat(d.el.style.top));
-    d.el.style.left = snapped.x + "px";   // animate to the magnetic slot
-    d.el.style.top = snapped.y + "px";
-    history = await hexClip.setPos(d.id, snapped.x, snapped.y);
-  } else {
-    toggleSelect(d.id); // plain click → (de)select
-  }
-});
-
-// Double-click a hex to reset it back to the auto honeycomb flow.
-hexCanvas.addEventListener("dblclick", async (e) => {
-  const cell = e.target.closest(".hex-cell");
-  if (cell) { history = await hexClip.setPos(Number(cell.dataset.id), null, null); render(); }
+  if (cell) toggleSelect(Number(cell.dataset.id));
 });
 
 // Bottom workbench — plain editable text, copy / save-to-note / clear.
@@ -695,7 +540,7 @@ function reflectPrivate(on) {
 // ── Main -> renderer events ──────────────────────────────────────────────────
 hexClip.onRefresh((data) => { history = data; render(); });
 hexClip.onPrivateMode((on) => reflectPrivate(on));
-hexClip.onSwitchTab((tab) => setView(tab === "hex" ? "hex" : "list"));
+hexClip.onSwitchTab((tab) => setView(tab === "grid" ? "grid" : "list"));
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init() {

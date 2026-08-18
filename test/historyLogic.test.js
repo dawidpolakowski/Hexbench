@@ -42,19 +42,6 @@ test("setTitle sets or clears a title", () => {
   assert.equal(logic.setTitle(history, 1, null).find((h) => h.id === 1).title, "");
 });
 
-test("setPos sets a custom position and clears it on null", () => {
-  const history = [{ id: 1 }];
-  const moved = logic.setPos(history, 1, 10, 20);
-  const item = moved.find((h) => h.id === 1);
-  assert.equal(item.hx, 10);
-  assert.equal(item.hy, 20);
-
-  const reset = logic.setPos(moved, 1, null, null);
-  const resetItem = reset.find((h) => h.id === 1);
-  assert.equal("hx" in resetItem, false);
-  assert.equal("hy" in resetItem, false);
-});
-
 test("deleteItem removes only the matching id", () => {
   const history = [{ id: 1 }, { id: 2 }];
   assert.deepEqual(logic.deleteItem(history, 1).map((h) => h.id), [2]);

@@ -21,12 +21,6 @@ function updateNote(notes, id, data = {}, now = Date.now()) {
     if (typeof data.body === "string") { note.body = data.body; contentChanged = true; }
     if (data.type === "text" || data.type === "list") { note.type = data.type; contentChanged = true; }
     if (data.listStyle === "bullet" || data.listStyle === "number") { note.listStyle = data.listStyle; contentChanged = true; }
-    // Custom grid position (null resets to flow). A move doesn't count as an edit.
-    if (data.nx === null || data.ny === null) { delete note.nx; delete note.ny; }
-    else {
-      if (typeof data.nx === "number") note.nx = data.nx;
-      if (typeof data.ny === "number") note.ny = data.ny;
-    }
     if (contentChanged) note.updated = now;
   }
   return next;

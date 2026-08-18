@@ -122,7 +122,7 @@ body {
 }
 
 .titlebar-brand { display: flex; align-items: center; gap: 8px; }
-.brand-hex { width: 17px; height: 19px; color: var(--primary); }
+.brand-hex { width: 17px; height: 19px; color: var(--text); }
 .titlebar-name { font-size: 13px; font-weight: 600; letter-spacing: -0.2px; }
 
 .private-badge {
@@ -247,6 +247,16 @@ body.dark .btn-secondary { backdrop-filter: var(--glass-blur); }
 }
 .tab-icon { flex-shrink: 0; }
 
+/* List/Grid grouped into one switch: shared pill border, no gap between segments. */
+.tab-group {
+  display: inline-flex;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.tab-group .tab-btn { border: none; border-radius: 0; }
+.tab-group .tab-btn + .tab-btn { border-left: 1px solid var(--card-border); }
+
 #search { flex: 1; min-width: 80px; }
 
 .top-actions { display: flex; align-items: center; gap: 6px; }
@@ -360,12 +370,17 @@ body.dark .btn-secondary { backdrop-filter: var(--glass-blur); }
 .empty-icon { font-size: 30px; display: block; margin-bottom: 10px; opacity: 0.35; }
 
 /* ========================= */
-/* Hex grid view             */
+/* Grid view                 */
 /* ========================= */
 
 .hex-view { flex: 1; display: flex; overflow: hidden; }
 .hex-canvas-wrap { flex: 1; overflow: auto; padding: 12px; }
-.hex-grid { position: relative; width: 100%; }
+.hex-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+}
 
 /* Saved (pinned) items get their own separated band at the top */
 .saved-section { position: relative; }
@@ -379,50 +394,63 @@ body.dark .btn-secondary { backdrop-filter: var(--glass-blur); }
 }
 .saved-divider { height: 1px; background: var(--card-border); margin: 8px 0 14px; }
 
+/* A tile is a rectangle sized to its own text — no fixed grid, no absolute
+   positioning; flex-wrap packs tiles left-to-right to fill each row. */
 .hex-cell {
-  position: absolute;
-  cursor: grab;
-  transform-origin: center;
-  transition: transform 0.16s cubic-bezier(.2,.8,.2,1), filter 0.16s ease, left 0.18s ease, top 0.18s ease;
+  position: relative;
+  cursor: pointer;
+  min-width: 64px;
+  max-width: 240px;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  transition: transform 0.16s cubic-bezier(.2,.8,.2,1), filter 0.16s ease, background 0.2s ease, border-color 0.2s ease;
 }
-.hex-cell.dragging { cursor: grabbing; z-index: 6; transition: none; }
-.hex-cell.dragging .hex-bg { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5)); }
-.hex-cell svg { display: block; overflow: visible; }
-.hex-cell svg text {
-  pointer-events: none;
-  fill: var(--text);
+.hex-cell-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+.hex-cell-text {
   font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
   font-weight: 500;
+  color: var(--text);
+  line-height: 1.35;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
 }
-.hex-cell svg text.hex-title { fill: var(--primary); font-family: 'Inter', sans-serif; }
-.hex-cell svg text.hex-sub { fill: var(--text-muted); }
 
-/* Per-type fills & strokes — color-mix keeps them theme-aware and "pro" */
-.hex-bg {
-  stroke-width: 1.2;
-  transition: fill 0.2s ease, stroke 0.2s ease, filter 0.16s ease;
-}
-.hex-bg.hex-text { fill: color-mix(in srgb, var(--hex-text) 14%, transparent); stroke: color-mix(in srgb, var(--hex-text) 50%, transparent); }
-.hex-bg.hex-link { fill: color-mix(in srgb, var(--hex-link) 16%, transparent); stroke: color-mix(in srgb, var(--hex-link) 58%, transparent); }
-.hex-bg.hex-code { fill: color-mix(in srgb, var(--hex-code) 16%, transparent); stroke: color-mix(in srgb, var(--hex-code) 58%, transparent); }
+/* Per-type fills & borders — color-mix keeps them theme-aware and "pro" */
+.hex-cell.hex-text { background: color-mix(in srgb, var(--hex-text) 14%, transparent); border-color: color-mix(in srgb, var(--hex-text) 50%, transparent); }
+.hex-cell.hex-link { background: color-mix(in srgb, var(--hex-link) 16%, transparent); border-color: color-mix(in srgb, var(--hex-link) 58%, transparent); }
+.hex-cell.hex-code { background: color-mix(in srgb, var(--hex-code) 16%, transparent); border-color: color-mix(in srgb, var(--hex-code) 58%, transparent); }
 
 /* Hover — lift, brighten, soft shadow */
-.hex-cell:hover { z-index: 2; transform: scale(1.08); }
-.hex-cell:hover .hex-bg { filter: brightness(1.22) saturate(1.15) drop-shadow(0 3px 8px rgba(0,0,0,0.35)); }
+.hex-cell:hover { z-index: 2; transform: scale(1.04); filter: brightness(1.22) saturate(1.15) drop-shadow(0 3px 8px rgba(0,0,0,0.35)); }
 
-/* Saved (pinned) — gold ring + corner star */
-.hex-cell.pinned .hex-bg { stroke: var(--primary); stroke-width: 1.8; }
+/* Saved (pinned) — gold ring */
+.hex-cell.pinned { border-color: var(--primary); border-width: 1.8px; }
 
 /* Selected — solid (opaque) fill + ring + glow + lift */
-.hex-cell.active { z-index: 3; transform: scale(1.07); }
-.hex-cell.active .hex-bg {
-  fill: color-mix(in srgb, var(--primary) 34%, var(--bg)); /* opaque: mix of two solid colors */
-  stroke: var(--primary);
-  stroke-width: 2.6;
+.hex-cell.active {
+  z-index: 3;
+  transform: scale(1.03);
+  background: color-mix(in srgb, var(--primary) 34%, var(--bg)); /* opaque: mix of two solid colors */
+  border-color: var(--primary);
+  border-width: 2px;
   filter: drop-shadow(0 0 10px var(--primary-glow));
 }
-.hex-cell.active svg text { fill: var(--text); font-weight: 600; }
-.hex-cell.active .hex-title { fill: var(--primary); }
+.hex-cell.active .hex-cell-text { color: var(--text); font-weight: 600; }
+.hex-cell.active .hex-cell-title { color: var(--primary); }
 
 /* Staggered pop-in (animation-delay set inline per cell) */
 @keyframes hexPop {
@@ -433,7 +461,7 @@ body.dark .btn-secondary { backdrop-filter: var(--glass-blur); }
 .hex-cell.anim { animation: hexPop 0.34s cubic-bezier(.2,.85,.25,1) backwards; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hex-cell, .hex-bg { transition: none; }
+  .hex-cell { transition: none; }
   .hex-cell.anim { animation: none; }
 }
 
@@ -662,13 +690,15 @@ body.github-dark .options-panel, body.light .options-panel { background: var(--c
   flex-shrink: 0;
   border-right: 1px solid var(--card-border);
 }
-/* Grid mode: absolutely-positioned rectangles (draggable, magnetic) */
+/* Grid mode: rectangles sized to their own content, packed to fill each row */
 .notes-list.grid-mode {
   flex: 1;
-  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
   border-right: 1px solid var(--card-border);
 }
-.notes-spacer { position: absolute; left: 0; width: 1px; height: 1px; pointer-events: none; }
 .note-card {
   padding: 9px 10px;
   border: 1px solid transparent;
@@ -678,19 +708,12 @@ body.github-dark .options-panel, body.light .options-panel { background: var(--c
   transition: background 0.1s, border-color 0.1s;
 }
 .notes-list.grid-mode .note-card {
-  position: absolute;
   margin-bottom: 0;
-  cursor: grab;
+  min-width: 120px;
+  max-width: 220px;
   border-color: var(--card-border);
   background: var(--card-bg);
   overflow: hidden;
-  transition: left 0.18s ease, top 0.18s ease, background 0.1s, border-color 0.1s;
-}
-.notes-list.grid-mode .note-card.dragging {
-  cursor: grabbing;
-  z-index: 5;
-  transition: none;
-  box-shadow: var(--shadow-card);
 }
 .notes-list.grid-mode .note-card-preview { white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
 .note-card:hover { background: var(--card-bg); border-color: var(--card-border); }

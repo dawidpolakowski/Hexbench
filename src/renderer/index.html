@@ -34,19 +34,21 @@
 
   <!-- Top bar: tabs + search + actions -->
   <div class="top-bar">
-    <button id="tabList" class="tab-btn tab-active" title="List view">
-      <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
-        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
-      </svg>
-      <span class="tab-label">List</span>
-    </button>
-    <button id="tabHex" class="tab-btn" title="Hex grid view">
-      <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2 20 7 20 17 12 22 4 17 4 7 Z"/>
-      </svg>
-      <span class="tab-label">Hex grid</span>
-    </button>
+    <div class="tab-group" id="viewSwitch" title="Clipboard view">
+      <button id="tabList" class="tab-btn tab-active" title="List view">
+        <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+          <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+        </svg>
+        <span class="tab-label">List</span>
+      </button>
+      <button id="tabGrid" class="tab-btn" title="Grid view">
+        <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>
+        </svg>
+        <span class="tab-label">Grid</span>
+      </button>
+    </div>
     <button id="tabNotes" class="tab-btn" title="Notes">
       <svg class="tab-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
@@ -139,7 +141,7 @@
     <div id="list" class="list"></div>
   </div>
 
-  <!-- Hex grid view -->
+  <!-- Grid view -->
   <div id="hexView" class="hex-view hidden">
     <div class="hex-canvas-wrap">
       <div id="savedSection" class="saved-section hidden">
@@ -209,7 +211,7 @@
       <p class="about-desc">
         A honeycomb workbench for your clipboard and notes. Hexbench sits in the
         tray and captures every copy — text, links, and code — then lets you
-        search, pin, browse the hex grid, gather snippets in the workbench, and
+        search, pin, browse the grid, gather snippets in the workbench, and
         keep plain-text or list notes alongside.
       </p>
 
@@ -217,7 +219,7 @@
         <div class="about-section-title">Shortcuts</div>
         <dl class="about-defs">
           <dt>Ctrl+Shift+V</dt><dd>Show / hide the window</dd>
-          <dt>Ctrl+Shift+H</dt><dd>Open the hex grid view</dd>
+          <dt>Ctrl+Shift+H</dt><dd>Open the grid view</dd>
           <dt>Ctrl+Shift+X</dt><dd>Toggle private mode (pauses capture)</dd>
           <dt>Ctrl+Shift+P</dt><dd>Pin the last copied item</dd>
         </dl>
@@ -242,8 +244,6 @@
 
   <script src="./textFormat.js"></script>
   <script src="./noteText.js"></script>
-  <script src="./hexLayout.js"></script>
-  <script src="./noteLayout.js"></script>
   <script src="./renderer.js"></script>
 </body>
 </html>

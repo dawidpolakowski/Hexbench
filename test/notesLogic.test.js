@@ -44,22 +44,13 @@ test("updateNote accepts type/listStyle only from their allowed sets", () => {
   assert.equal(note2.listStyle, "bullet");
 });
 
-test("updateNote sets a custom position without bumping updated", () => {
-  const notes = [{ id: 1, updated: 1 }];
+test("updateNote ignores unrecognized data fields", () => {
+  const notes = [{ id: 1, title: "a", updated: 1 }];
   const next = logic.updateNote(notes, 1, { nx: 10, ny: 20 }, 999);
-  const note = next.find((n) => n.id === 1);
-  assert.equal(note.nx, 10);
-  assert.equal(note.ny, 20);
-  assert.equal(note.updated, 1, "a move is not an edit");
-});
-
-test("updateNote clears position on null and leaves updated alone", () => {
-  const notes = [{ id: 1, nx: 10, ny: 20, updated: 1 }];
-  const next = logic.updateNote(notes, 1, { nx: null, ny: null }, 999);
   const note = next.find((n) => n.id === 1);
   assert.equal("nx" in note, false);
   assert.equal("ny" in note, false);
-  assert.equal(note.updated, 1);
+  assert.equal(note.updated, 1, "not a recognized edit");
 });
 
 test("updateNote is a no-op for an unknown id", () => {
